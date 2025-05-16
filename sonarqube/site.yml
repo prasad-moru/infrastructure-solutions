@@ -1,0 +1,9 @@
+---
+- name: Deploy SonarQube with PostgreSQL
+  hosts: sonarqube_servers
+  become: yes
+  vars_files:
+    - vars/main.yml
+  roles:
+    - postgresql
+    - sonarqube

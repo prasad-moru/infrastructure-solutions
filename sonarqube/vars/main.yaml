@@ -1,0 +1,22 @@
+---
+# PostgreSQL variables
+postgresql_version: "14"
+
+# SonarQube database settings - Change these for production!
+sonarqube_db_name: sonar
+sonarqube_db_user: sonar
+sonarqube_db_password: sonarpassword
+
+# SonarQube version
+sonarqube_version: "9.9.1.69595"
+
+# Web configuration - Change host to limit access if needed
+sonarqube_web_host: 0.0.0.0
+sonarqube_web_port: 9000
+
+# Elasticsearch settings - Adjust based on available memory
+sonarqube_search_java_opts: "-Xmx512m -Xms512m -XX:MaxDirectMemorySize=256m -XX:+HeapDumpOnOutOfMemoryError"
+
+# inventory.ini - Example inventory file
+[sonarqube_servers]
+sonarqube-server ansible_host=your-aws-instance-ip ansible_user=ubuntu

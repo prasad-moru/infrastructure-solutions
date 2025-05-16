@@ -1,0 +1,18 @@
+# roles/sonarqube/templates/sonar.properties.j2
+# Database configuration
+sonar.jdbc.username={{ sonarqube_db_user }}
+sonar.jdbc.password={{ sonarqube_db_password }}
+sonar.jdbc.url=jdbc:postgresql://{{ sonarqube_db_host }}:{{ sonarqube_db_port }}/{{ sonarqube_db_name }}
+
+# Web server configuration
+sonar.web.host={{ sonarqube_web_host }}
+sonar.web.port={{ sonarqube_web_port }}
+sonar.web.context={{ sonarqube_web_context }}
+
+# Elasticsearch configuration
+sonar.search.javaOpts={{ sonarqube_search_java_opts }}
+
+# Path configuration
+sonar.path.data={{ sonarqube_install_dir }}/data
+sonar.path.temp={{ sonarqube_install_dir }}/temp
+sonar.path.logs={{ sonarqube_install_dir }}/logs

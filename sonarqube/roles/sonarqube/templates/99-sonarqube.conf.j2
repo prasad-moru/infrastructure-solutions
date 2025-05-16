@@ -1,0 +1,5 @@
+# SonarQube user limits
+{{ sonarqube_user }} soft nofile {{ sonarqube_nofile_soft_limit }}
+{{ sonarqube_user }} hard nofile {{ sonarqube_nofile_hard_limit }}
+{{ sonarqube_user }} soft nproc 8192
+{{ sonarqube_user }} hard nproc 8192

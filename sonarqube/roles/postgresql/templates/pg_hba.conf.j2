@@ -1,0 +1,11 @@
+# PostgreSQL Client Authentication Configuration File
+# ===================================================
+local   all             postgres                                peer
+local   all             all                                     peer
+host    all             all             127.0.0.1/32            md5
+host    all             all             ::1/128                 md5
+
+# Allow connections from the SonarQube server
+host    {{ sonarqube_db_name }}    {{ sonarqube_db_user }}    127.0.0.1/32    md5
+
+# SonarQube role files

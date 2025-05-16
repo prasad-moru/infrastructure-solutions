@@ -1,0 +1,137 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - unzip
+      - curl
+      - "{{ java_package }}"
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Set system kernel parameters for Elasticsearch
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  with_items:
+    - { key: "vm.max_map_count", value: "{{ sonarqube_fs_vm_max_map_count }}" }
+    - { key: "fs.file-max", value: "{{ sonarqube_fs_file_max }}" }
+  become: yes
+
+- name: Set limits for SonarQube user
+  template:
+    src: 99-sonarqube.conf.j2
+    dest: /etc/security/limits.d/99-sonarqube.conf
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+
+- name: Create SonarQube group
+  group:
+    name: "{{ sonarqube_group }}"
+    state: present
+  become: yes
+
+- name: Create SonarQube user
+  user:
+    name: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    shell: /bin/bash
+    home: /home/{{ sonarqube_user }}
+    system: yes
+    state: present
+  become: yes
+
+- name: Create SonarQube installation directory
+  file:
+    path: "{{ sonarqube_install_dir }}"
+    state: directory
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    mode: '0755'
+  become: yes
+
+- name: Check if SonarQube is already installed
+  stat:
+    path: "{{ sonarqube_install_dir }}/bin/linux-x86-64/sonar.sh"
+  register: sonar_binary
+  become: yes
+
+- name: Download SonarQube
+  get_url:
+    url: "{{ sonarqube_download_url }}"
+    dest: "/tmp/sonarqube-{{ sonarqube_version }}.zip"
+    validate_certs: "{{ sonarqube_download_validate_certs }}"
+  when: not sonar_binary.stat.exists
+  become: yes
+
+- name: Extract SonarQube
+  unarchive:
+    src: "/tmp/sonarqube-{{ sonarqube_version }}.zip"
+    dest: /tmp
+    remote_src: yes
+  when: not sonar_binary.stat.exists
+  become: yes
+
+- name: Move SonarQube to installation directory
+  shell: mv /tmp/sonarqube-{{ sonarqube_version }}/* {{ sonarqube_install_dir }}
+  when: not sonar_binary.stat.exists
+  become: yes
+
+- name: Set ownership for SonarQube directory
+  file:
+    path: "{{ sonarqube_install_dir }}"
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    recurse: yes
+  become: yes
+
+- name: Create SonarQube temporary directory
+  file:
+    path: "{{ sonarqube_install_dir }}/temp"
+    state: directory
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    mode: '0755'
+  become: yes
+
+- name: Create SonarQube logs directory
+  file:
+    path: "{{ sonarqube_install_dir }}/logs"
+    state: directory
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    mode: '0755'
+  become: yes
+
+- name: Configure SonarQube properties
+  template:
+    src: sonar.properties.j2
+    dest: "{{ sonarqube_install_dir }}/conf/sonar.properties"
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    mode: '0644'
+  become: yes
+  notify: restart sonarqube
+
+- name: Create SonarQube service file
+  template:
+    src: sonarqube.service.j2
+    dest: /etc/systemd/system/sonarqube.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify:
+    - reload systemd
+    - restart sonarqube
+
+- name: Ensure SonarQube service is enabled and started
+  service:
+    name: sonarqube
+    state: started
+    enabled: yes
+  become: yes
