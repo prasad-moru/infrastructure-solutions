@@ -23,17 +23,15 @@ build {
     "source.amazon-ebs.ubuntu"
   ]
 
-  provisioner "shell" {
-    environment_vars = [
-      "FOO=hello world",
-    ]
-    inline = [
-      # Added your requested commands
-      "cd /home/ubuntu/infrastucture-solutions || mkdir -p /home/ubuntu/infrastucture-solutions",
-      "git pull || echo 'Git pull failed - may need to clone repository first'",
-      "cat /home/ubuntu/infrastucture-solutions/testing.txt || echo 'File not found'",
-      "cd /home/ubuntu/infrastucture-solutions/sonarqube/ || echo 'Sonarqube directory not found'",
-      "ansible-playbook -i inventory.ini site.yml || echo 'Ansible playbook execution failed'"
-    ]
+  provisioner "file" {
+  source      = "deploy.sh"
+  destination = "/tmp/deploy.sh"
   }
+  provisioner "shell" {
+  inline = [
+    "chmod +x /tmp/deploy.sh",
+    "/tmp/deploy.sh"
+   ]
+  }
+
 }

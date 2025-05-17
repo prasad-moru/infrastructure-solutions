@@ -10,12 +10,7 @@ Packer v1.12.0
 
 
 cd /home/ubuntu/infrastucture-solutions
-
-
 git pull
-
 cat /home/ubuntu/infrastucture-solutions/testing.txt
-
 cd /home/ubuntu/infrastucture-solutions/sonarqube/
-
 ansible-playbook -i inventory.ini site.yml
