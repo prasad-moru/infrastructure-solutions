@@ -1,0 +1,28 @@
+{
+  "variables": {
+    "ami_name": "my-custom-ami",
+    "ami_region": "us-east-1"
+  },
+  "builders": [
+    {
+      "type": "amazon-ebs",
+      "region": "{{user `ami_region`}}",
+      "source_ami": "ami-0953476d60561c955",
+      "instance_type": "t2.micro",
+      "ssh_username": "ec2-user",
+      "associate_public_ip_address": true,
+      "ssh_timeout": "10m",
+      "ssh_handshake_attempts": 100,
+      "ami_name": "{{user `ami_name`}}-{{timestamp}}",
+      "tags": {
+        "Name": "{{user `ami_name`}}"
+      }
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": "echo 'Hello, world!' > /tmp/hello.txt"
+    }
+  ]
+}
