@@ -9,11 +9,11 @@ packer {
 
 source "amazon-ebs" "ubuntu" {
   ami_name      = "myubunt_image-{{timestamp}}"
-  instance_type = "t2.medium"
-  region        = "us-west-2"
-  source_ami    = "ami-0d1c82c20e5133e0e"
-  ssh_keypair_name = "newkey"
-  ssh_private_key_file = "/home/prasadmoru/.ssh/newkey.pem"
+  instance_type = "t2.xlarge"
+  region        = "us-east-1"
+  source_ami    = "ami-0dd3fa5cfb0989d2d"
+  ssh_keypair_name = "github_actions"
+  ssh_private_key_file = "/home/prasadmoru/.ssh/github_actions.pem"
   ssh_username = "ubuntu"
 }
 
@@ -28,12 +28,12 @@ build {
       "FOO=hello world",
     ]
     inline = [
-      "echo Installing Redis",
-      "sleep 30",
-      "sudo apt-get update",
-      "sudo apt-get install -y redis-server",
-      "sudo apt-get install -y nginx",
-      "echo \"FOO is $FOO\" > example.txt",
+      # Added your requested commands
+      "cd /home/ubuntu/infrastucture-solutions || mkdir -p /home/ubuntu/infrastucture-solutions",
+      "git pull || echo 'Git pull failed - may need to clone repository first'",
+      "cat /home/ubuntu/infrastucture-solutions/testing.txt || echo 'File not found'",
+      "cd /home/ubuntu/infrastucture-solutions/sonarqube/ || echo 'Sonarqube directory not found'",
+      "ansible-playbook -i inventory.ini site.yml || echo 'Ansible playbook execution failed'"
     ]
   }
 }
