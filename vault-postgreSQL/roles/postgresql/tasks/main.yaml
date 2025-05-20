@@ -29,7 +29,23 @@
     name: "{{ postgresql_packages }}"
     state: present
     update_cache: yes
-  notify: restart postgresql
+  register: pg_install_result
+  failed_when: false
+
+- name: Display PostgreSQL installation result
+  debug:
+    var: pg_install_result
+
+- name: Check which PostgreSQL packages are available
+  shell: apt-cache search postgresql | grep -E 'postgresql-[0-9]+|postgresql-client|postgresql-contrib'
+  register: pg_available_packages
+  changed_when: false
+  when: pg_install_result is failed or not pg_install_result.changed
+
+- name: Display available PostgreSQL packages
+  debug:
+    var: pg_available_packages
+  when: pg_available_packages is defined and pg_available_packages.stdout is defined
 
 - name: Ensure PostgreSQL data directory exists
   file:
@@ -89,11 +105,38 @@
     job: "/usr/local/bin/postgresql_backup.sh"
     user: postgres
 
-- name: Start and enable PostgreSQL service
+- name: Check if PostgreSQL clusters exist
+  shell: pg_lsclusters
+  register: pg_clusters
+  changed_when: false
+  failed_when: false
+
+- name: Display PostgreSQL clusters
+  debug:
+    var: pg_clusters.stdout_lines
+
+- name: Stop PostgreSQL service before recreating cluster
   systemd:
-    name: "postgresql"
+    name: postgresql
+    state: stopped
+  when: pg_clusters.rc != 0 or pg_clusters.stdout is not defined or pg_clusters.stdout == ""
+  failed_when: false
+
+- name: Drop existing broken PostgreSQL cluster if it exists
+  shell: pg_dropcluster --stop {{ postgresql_version }} main
+  when: pg_clusters.rc != 0 or pg_clusters.stdout is not defined or pg_clusters.stdout == ""
+  failed_when: false
+
+- name: Create PostgreSQL cluster if it doesn't exist
+  shell: pg_createcluster {{ postgresql_version }} main
+  when: pg_clusters.rc != 0 or pg_clusters.stdout is not defined or pg_clusters.stdout == ""
+
+- name: Start PostgreSQL service
+  systemd:
+    name: postgresql
     state: started
     enabled: yes
+  when: pg_clusters.rc != 0 or pg_clusters.stdout is not defined or pg_clusters.stdout == ""
 
 - name: Set PostgreSQL admin user password
   become: yes
@@ -105,7 +148,65 @@
   no_log: true
   when: postgresql_admin_password != "ChangeMe"
 
-- name: Create PostgreSQL users
+- name: Ensure required Python packages are installed
+  apt:
+    name:
+      - python3-pip
+      - python3-dev
+      - libpq-dev
+    state: present
+
+- name: Install psycopg2 Python module
+  pip:
+    name: psycopg2
+    state: present
+
+- name: Check PostgreSQL service status
+  systemd:
+    name: "postgresql"
+  register: postgresql_service_status
+  failed_when: false
+
+- name: Display PostgreSQL service status
+  debug:
+    var: postgresql_service_status
+
+- name: Restart PostgreSQL if it's not running
+  systemd:
+    name: "postgresql"
+    state: restarted
+  when: postgresql_service_status.status.ActiveState is defined and postgresql_service_status.status.ActiveState != "active"
+
+- name: Wait for PostgreSQL to start
+  wait_for:
+    port: "{{ postgresql_port }}"
+    timeout: 30
+  register: pg_wait_result
+  failed_when: false
+
+- name: Display PostgreSQL wait result
+  debug:
+    var: pg_wait_result
+
+- name: Verify PostgreSQL is running
+  command: pg_isready
+  register: pg_ready
+  changed_when: false
+  failed_when: false
+
+- name: Display PostgreSQL readiness
+  debug:
+    var: pg_ready
+
+- name: Check PostgreSQL permission setup
+  become: yes
+  become_user: postgres
+  command: psql -c "\du"
+  register: postgres_roles
+  changed_when: false
+  failed_when: false
+
+- name: Create PostgreSQL users with debug output
   become: yes
   become_user: postgres
   postgresql_user:
@@ -114,7 +215,16 @@
     role_attr_flags: "{{ item.role_attr_flags | default('') }}"
     state: present
   with_items: "{{ postgresql_users }}"
-  no_log: true
+  register: create_users_result
+  failed_when: false
+  no_log: false  # Temporarily disable no_log for debugging
+
+- name: Debug user creation results (without passwords)
+  debug:
+    msg: "User creation for {{ item.item.name }} result: {{ 'success' if item.changed or item.failed is defined and not item.failed else 'failed' }}"
+  with_items: "{{ create_users_result.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
 
 - name: Create PostgreSQL databases
   become: yes

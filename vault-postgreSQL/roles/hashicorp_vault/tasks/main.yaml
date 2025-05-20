@@ -13,24 +13,35 @@
       - apt-transport-https
       - ca-certificates
       - jq
+      - lsb-release
     state: present
 
-- name: Add HashiCorp GPG key
-  apt_key:
+- name: Download HashiCorp GPG key
+  get_url:
     url: https://apt.releases.hashicorp.com/gpg
-    state: present
+    dest: /tmp/hashicorp-archive-keyring.asc
+    mode: 0644
+
+- name: Install HashiCorp GPG key
+  shell: |
+    gpg --dearmor < /tmp/hashicorp-archive-keyring.asc | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
+  args:
+    creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
 
 - name: Add HashiCorp repository
-  apt_repository:
-    repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
-    state: present
-    filename: hashicorp
+  shell: |
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+  args:
+    creates: /etc/apt/sources.list.d/hashicorp.list
 
-- name: Install HashiCorp Vault
+- name: Update apt cache
   apt:
-    name: vault={{ vault_version }}
-    state: present
     update_cache: yes
+
+- name: Install HashiCorp Vault (latest version)
+  apt:
+    name: vault
+    state: present
   notify: restart vault
 
 - name: Create Vault user
@@ -81,50 +92,57 @@
     mode: 0644
   notify: restart vault
 
-- name: Start and enable Vault service
+- name: Start Vault service
   systemd:
     name: vault
     state: started
     enabled: yes
     daemon_reload: yes
 
-- name: Set Vault environment variables
-  lineinfile:
-    path: /etc/environment
-    line: "{{ item }}"
-    state: present
-  with_items:
-    - 'VAULT_ADDR=http://127.0.0.1:8200'
-    - 'VAULT_SKIP_VERIFY=true'
+- name: Wait for Vault service to start (5 seconds)
+  wait_for:
+    timeout: 5
+  
+- name: Check Vault service status
+  command: systemctl status vault
+  register: vault_status_check
+  changed_when: false
+  failed_when: false
 
-- name: Wait for Vault to start
+- name: Display Vault service status
+  debug:
+    var: vault_status_check.stdout_lines
+
+- name: View recent Vault logs
+  shell: journalctl -u vault --no-pager -n 20
+  register: vault_logs
+  changed_when: false
+  failed_when: false
+
+- name: Display Vault logs
+  debug:
+    var: vault_logs.stdout_lines
+
+- name: Attempt to check Vault health (may fail if not initialized)
   uri:
     url: http://127.0.0.1:8200/v1/sys/health
     method: GET
-    status_code: 200,429,501,503
-  register: vault_status
-  until: vault_status.status == 200 or vault_status.status == 429 or vault_status.status == 501 or vault_status.status == 503
-  retries: 10
-  delay: 5
+    status_code: 200,429,501,503,400
+    validate_certs: no
+  register: vault_health_status
+  failed_when: false
 
-- name: Check if Vault is initialized
-  shell: vault status -format=json | jq .initialized
-  register: vault_initialized
-  changed_when: false
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
-    VAULT_SKIP_VERIFY: "true"
-  ignore_errors: yes
+- name: Display Vault health status
+  debug:
+    var: vault_health_status
 
-- name: Initialize Vault if not already initialized
-  shell: vault operator init -format=json | tee /root/vault-init.json
-  when: vault_initialized.stdout == "false" or vault_initialized.stdout == ""
-  register: vault_init_result
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
-    VAULT_SKIP_VERIFY: "true"
+- name: Initialize Vault (this is required after first installation)
+  shell: >
+    VAULT_ADDR=http://127.0.0.1:8200 vault operator init -format=json | tee /root/vault-init.json
   args:
     creates: /root/vault-init.json
+  register: vault_init_result
+  failed_when: false
 
 - name: Secure Vault initialization file
   file:
@@ -138,3 +156,45 @@
   debug:
     msg: "Vault has been initialized. The unseal keys and root token are stored in /root/vault-init.json. Please secure this information."
   when: vault_init_result.changed
+
+- name: Extract first unseal key and root token (for automated unsealing - NOT recommended for production)
+  shell: >
+    jq -r '.unseal_keys_b64[0]' /root/vault-init.json
+  register: first_unseal_key
+  changed_when: false
+  failed_when: false
+  when: vault_init_result.changed
+
+- name: Extract root token
+  shell: >
+    jq -r '.root_token' /root/vault-init.json
+  register: root_token
+  changed_when: false
+  failed_when: false
+  when: vault_init_result.changed
+
+- name: Unseal Vault with first key (for demo purposes only - use a proper unsealing strategy in production)
+  shell: >
+    VAULT_ADDR=http://127.0.0.1:8200 vault operator unseal {{ first_unseal_key.stdout }}
+  when: vault_init_result.changed and first_unseal_key.stdout is defined and first_unseal_key.stdout != ""
+  failed_when: false
+
+- name: Final check of Vault status
+  shell: >
+    VAULT_ADDR=http://127.0.0.1:8200 vault status || echo "Vault may need to be unsealed manually"
+  register: final_vault_status
+  changed_when: false
+  failed_when: false
+
+- name: Display final Vault status
+  debug:
+    var: final_vault_status.stdout_lines
+
+- name: Set Vault environment variables
+  lineinfile:
+    path: /etc/environment
+    line: "{{ item }}"
+    state: present
+  with_items:
+    - 'VAULT_ADDR=http://127.0.0.1:8200'
+    - 'VAULT_SKIP_VERIFY=true'

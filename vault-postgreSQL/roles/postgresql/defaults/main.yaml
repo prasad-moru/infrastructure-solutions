@@ -1,9 +1,10 @@
+---
 # PostgreSQL version
 postgresql_version: 16  # Update to the latest version available as of May 2025
 postgresql_packages:
   - "postgresql-{{ postgresql_version }}"
-  - "postgresql-contrib-{{ postgresql_version }}"
-  - "postgresql-client-{{ postgresql_version }}"
+  - "postgresql-contrib"
+  - "postgresql-client"
   - "libpq-dev"
   - "python3-psycopg2"
 

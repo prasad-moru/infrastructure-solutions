@@ -1,5 +1,5 @@
 ---
-vault_version: "1.15.2"  # Update this with the latest version available as of May 2025
+vault_version: "1.19.4"  # Update this with the latest version available as of May 2025
 vault_user: vault
 vault_group: vault
 vault_home: /opt/vault
