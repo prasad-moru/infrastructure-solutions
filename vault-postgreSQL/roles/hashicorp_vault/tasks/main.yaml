@@ -1,0 +1,140 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - gnupg
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+      - jq
+    state: present
+
+- name: Add HashiCorp GPG key
+  apt_key:
+    url: https://apt.releases.hashicorp.com/gpg
+    state: present
+
+- name: Add HashiCorp repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    state: present
+    filename: hashicorp
+
+- name: Install HashiCorp Vault
+  apt:
+    name: vault={{ vault_version }}
+    state: present
+    update_cache: yes
+  notify: restart vault
+
+- name: Create Vault user
+  user:
+    name: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    system: yes
+    create_home: no
+    home: "{{ vault_home }}"
+    shell: /bin/false
+  register: vault_user_created
+
+- name: Create Vault group
+  group:
+    name: "{{ vault_group }}"
+    system: yes
+  register: vault_group_created
+
+- name: Create Vault directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0750
+  with_items:
+    - "{{ vault_home }}"
+    - "{{ vault_storage_path }}"
+    - "{{ vault_home }}/config"
+    - "{{ vault_home }}/logs"
+    - "{{ vault_home }}/tls"
+
+- name: Configure Vault
+  template:
+    src: vault.hcl.j2
+    dest: "{{ vault_home }}/config/vault.hcl"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0640
+  notify: restart vault
+
+- name: Create systemd service file
+  template:
+    src: vault.service.j2
+    dest: /etc/systemd/system/vault.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart vault
+
+- name: Start and enable Vault service
+  systemd:
+    name: vault
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Set Vault environment variables
+  lineinfile:
+    path: /etc/environment
+    line: "{{ item }}"
+    state: present
+  with_items:
+    - 'VAULT_ADDR=http://127.0.0.1:8200'
+    - 'VAULT_SKIP_VERIFY=true'
+
+- name: Wait for Vault to start
+  uri:
+    url: http://127.0.0.1:8200/v1/sys/health
+    method: GET
+    status_code: 200,429,501,503
+  register: vault_status
+  until: vault_status.status == 200 or vault_status.status == 429 or vault_status.status == 501 or vault_status.status == 503
+  retries: 10
+  delay: 5
+
+- name: Check if Vault is initialized
+  shell: vault status -format=json | jq .initialized
+  register: vault_initialized
+  changed_when: false
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+    VAULT_SKIP_VERIFY: "true"
+  ignore_errors: yes
+
+- name: Initialize Vault if not already initialized
+  shell: vault operator init -format=json | tee /root/vault-init.json
+  when: vault_initialized.stdout == "false" or vault_initialized.stdout == ""
+  register: vault_init_result
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+    VAULT_SKIP_VERIFY: "true"
+  args:
+    creates: /root/vault-init.json
+
+- name: Secure Vault initialization file
+  file:
+    path: /root/vault-init.json
+    owner: root
+    group: root
+    mode: 0600
+  when: vault_init_result.changed
+
+- name: Display Vault initialization information
+  debug:
+    msg: "Vault has been initialized. The unseal keys and root token are stored in /root/vault-init.json. Please secure this information."
+  when: vault_init_result.changed

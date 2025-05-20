@@ -1,0 +1,7 @@
+# playbook.yml
+- name: Install HashiCorp Vault and PostgreSQL on Ubuntu 24.04 LTS
+  hosts: aws_ubuntu_instances
+  become: yes
+  roles:
+    - hashicorp_vault
+    - postgresql

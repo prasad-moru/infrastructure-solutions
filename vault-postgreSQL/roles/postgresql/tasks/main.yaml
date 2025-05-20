@@ -1,0 +1,130 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install dependencies
+  apt:
+    name:
+      - gnupg
+      - curl
+      - ca-certificates
+      - lsb-release
+    state: present
+
+- name: Add PostgreSQL repository key
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Add PostgreSQL repository
+  apt_repository:
+    repo: "deb http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+
+- name: Install PostgreSQL packages
+  apt:
+    name: "{{ postgresql_packages }}"
+    state: present
+    update_cache: yes
+  notify: restart postgresql
+
+- name: Ensure PostgreSQL data directory exists
+  file:
+    path: "{{ postgresql_data_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: 0700
+
+- name: Ensure PostgreSQL log directory exists
+  file:
+    path: "{{ postgresql_log_directory }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: 0755
+
+- name: Configure PostgreSQL
+  template:
+    src: postgresql.conf.j2
+    dest: "{{ postgresql_conf_path }}"
+    owner: postgres
+    group: postgres
+    mode: 0644
+  notify: restart postgresql
+
+- name: Configure PostgreSQL HBA
+  template:
+    src: pg_hba.conf.j2
+    dest: "{{ postgresql_hba_path }}"
+    owner: postgres
+    group: postgres
+    mode: 0640
+  notify: restart postgresql
+
+- name: Create PostgreSQL backup directory
+  file:
+    path: "{{ postgresql_backup_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: 0750
+
+- name: Install backup script
+  template:
+    src: backup.sh.j2
+    dest: /usr/local/bin/postgresql_backup.sh
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Set up backup cron job
+  cron:
+    name: "PostgreSQL backup"
+    hour: "3"
+    minute: "0"
+    job: "/usr/local/bin/postgresql_backup.sh"
+    user: postgres
+
+- name: Start and enable PostgreSQL service
+  systemd:
+    name: "postgresql"
+    state: started
+    enabled: yes
+
+- name: Set PostgreSQL admin user password
+  become: yes
+  become_user: postgres
+  postgresql_user:
+    name: "{{ postgresql_admin_user }}"
+    password: "{{ postgresql_admin_password }}"
+    login_host: localhost
+  no_log: true
+  when: postgresql_admin_password != "ChangeMe"
+
+- name: Create PostgreSQL users
+  become: yes
+  become_user: postgres
+  postgresql_user:
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    role_attr_flags: "{{ item.role_attr_flags | default('') }}"
+    state: present
+  with_items: "{{ postgresql_users }}"
+  no_log: true
+
+- name: Create PostgreSQL databases
+  become: yes
+  become_user: postgres
+  postgresql_db:
+    name: "{{ item.name }}"
+    owner: "{{ item.owner | default(postgresql_admin_user) }}"
+    encoding: "{{ item.encoding | default('UTF8') }}"
+    lc_collate: "{{ item.lc_collate | default('en_US.UTF-8') }}"
+    lc_ctype: "{{ item.lc_ctype | default('en_US.UTF-8') }}"
+    template: "{{ item.template | default('template0') }}"
+    state: present
+  with_items: "{{ postgresql_databases }}"

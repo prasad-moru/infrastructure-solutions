@@ -1,0 +1,54 @@
+# PostgreSQL version
+postgresql_version: 16  # Update to the latest version available as of May 2025
+postgresql_packages:
+  - "postgresql-{{ postgresql_version }}"
+  - "postgresql-contrib-{{ postgresql_version }}"
+  - "postgresql-client-{{ postgresql_version }}"
+  - "libpq-dev"
+  - "python3-psycopg2"
+
+# PostgreSQL configuration
+postgresql_data_dir: "/var/lib/postgresql/{{ postgresql_version }}/main"
+postgresql_config_path: "/etc/postgresql/{{ postgresql_version }}/main"
+postgresql_conf_path: "{{ postgresql_config_path }}/postgresql.conf"
+postgresql_hba_path: "{{ postgresql_config_path }}/pg_hba.conf"
+
+# Network settings
+postgresql_listen_addresses: "*"
+postgresql_port: 5432
+
+# Memory settings
+postgresql_shared_buffers: "128MB"
+postgresql_work_mem: "4MB"
+postgresql_effective_cache_size: "1GB"
+postgresql_maintenance_work_mem: "64MB"
+
+# Logging
+postgresql_log_directory: "/var/log/postgresql"
+postgresql_log_filename: "postgresql-%Y-%m-%d_%H%M%S.log"
+postgresql_log_rotation_age: "1d"
+postgresql_log_rotation_size: "10MB"
+
+# Users
+postgresql_admin_user: postgres
+postgresql_admin_password: "ChangeMe"  # Change this for production
+postgresql_users:
+  - name: app_user
+    password: "SecurePassword"  # Change this for production
+    role_attr_flags: "CREATEDB,LOGIN"
+
+# Databases
+postgresql_databases:
+  - name: app_db
+    owner: app_user
+    encoding: UTF8
+    lc_collate: en_US.UTF-8
+    lc_ctype: en_US.UTF-8
+    template: template0
+
+# Connection limits
+postgresql_max_connections: 100
+
+# Backup settings
+postgresql_backup_dir: /var/backups/postgresql
+postgresql_backup_retention: 7
