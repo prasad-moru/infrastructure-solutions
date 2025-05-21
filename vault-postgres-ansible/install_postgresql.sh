@@ -8,6 +8,7 @@ PG_VERSION="16"
 VAULT_DB_NAME="vault_db"
 VAULT_DB_USER="vault_user"
 VAULT_DB_PASSWORD=$(openssl rand -hex 16)  # Generate random password
+VAULT_CONFIG_DIR="/etc/vault.d"
 
 # Install PostgreSQL
 echo "Installing PostgreSQL..."
@@ -45,11 +46,16 @@ sudo sed -i "s/^#listen_addresses =.*/listen_addresses = 'localhost'/g" /etc/pos
 # Restart PostgreSQL
 sudo systemctl restart postgresql
 
-# Save credentials to file
-echo "VAULT_DB_NAME=$VAULT_DB_NAME" | sudo tee /etc/vault.d/db_credentials
-echo "VAULT_DB_USER=$VAULT_DB_USER" | sudo tee -a /etc/vault.d/db_credentials
-echo "VAULT_DB_PASSWORD=$VAULT_DB_PASSWORD" | sudo tee -a /etc/vault.d/db_credentials
-sudo chmod 600 /etc/vault.d/db_credentials
+# Create Vault config directory and save credentials
+echo "Creating Vault configuration directory..."
+sudo mkdir -p $VAULT_CONFIG_DIR
+echo "VAULT_DB_NAME=$VAULT_DB_NAME" | sudo tee $VAULT_CONFIG_DIR/db_credentials
+echo "VAULT_DB_USER=$VAULT_DB_USER" | sudo tee -a $VAULT_CONFIG_DIR/db_credentials
+echo "VAULT_DB_PASSWORD=$VAULT_DB_PASSWORD" | sudo tee -a $VAULT_CONFIG_DIR/db_credentials
+sudo chmod 600 $VAULT_CONFIG_DIR/db_credentials
 
+echo ""
 echo "PostgreSQL installed and configured successfully!"
-echo "Database credentials saved to /etc/vault.d/db_credentials"
+echo "Database credentials saved to $VAULT_CONFIG_DIR/db_credentials"
+echo ""
+echo "You can now proceed with Vault installation using Ansible."
