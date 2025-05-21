@@ -9,10 +9,11 @@ postgresql_bin_dir: /usr/lib/postgresql/{{ postgresql_version }}/bin
 postgresql_conf_dir: /etc/postgresql/{{ postgresql_version }}/main
 postgresql_service: postgresql
 
-# Vault database settings
+# Vault database settings - using localhost since same server
 vault_db_name: vault_db
 vault_db_user: vault_user
 vault_db_password: "your_secure_password_here"
+vault_db_host: "127.0.0.1"  # Changed to localhost
 vault_db_port: 5432
 
 # Vault variables

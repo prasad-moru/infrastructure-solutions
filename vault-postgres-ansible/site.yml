@@ -1,18 +1,8 @@
 ---
-- name: Setup common dependencies
-  hosts: all
+- name: Setup local Vault with PostgreSQL
+  hosts: localhost
   become: yes
   roles:
     - common
-
-- name: Setup PostgreSQL for Vault
-  hosts: vault_db
-  become: yes
-  roles:
     - postgresql
-
-- name: Setup HashiCorp Vault
-  hosts: vault_server
-  become: yes
-  roles:
     - vault
