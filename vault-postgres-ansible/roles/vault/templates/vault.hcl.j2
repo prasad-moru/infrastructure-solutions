@@ -1,12 +1,12 @@
 storage "postgresql" {
-  connection_url = "postgresql://{{ vault_db_user }}:{{ vault_db_password }}@{{ vault_db_host }}:{{ vault_db_port }}/{{ vault_db_name }}?sslmode=disable"
+  connection_url = "postgresql://{{ db_creds.VAULT_DB_USER }}:{{ db_creds.VAULT_DB_PASSWORD }}@localhost:5432/{{ db_creds.VAULT_DB_NAME }}?sslmode=disable"
 }
 
 listener "tcp" {
   address     = "127.0.0.1:8200"
-  tls_disable = {{ vault_tls_disabled | lower }}
+  tls_disable = true
 }
 
-api_addr = "{{ vault_api_addr }}"
-cluster_addr = "{{ vault_cluster_addr }}"
-ui = {{ ui | lower }}
+api_addr = "http://127.0.0.1:8200"
+cluster_addr = "http://127.0.0.1:8201"
+ui = true

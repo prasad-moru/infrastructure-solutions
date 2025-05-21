@@ -1,31 +1,13 @@
 [Unit]
-Description=HashiCorp Vault - A tool for managing secrets
+Description=HashiCorp Vault
 Documentation=https://www.vaultproject.io/docs/
-Requires=network-online.target
-After=network-online.target
-ConditionFileNotEmpty=/etc/vault.d/vault.hcl
+After=network.target postgresql.service
 
 [Service]
 User={{ vault_user }}
 Group={{ vault_group }}
-ProtectSystem=full
-ProtectHome=read-only
-PrivateTmp=yes
-PrivateDevices=yes
-SecureBits=keep-caps
-AmbientCapabilities=CAP_IPC_LOCK
-Capabilities=CAP_IPC_LOCK+ep
-CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
-NoNewPrivileges=yes
-ExecStart={{ vault_bin_dir }}/vault server -config=/etc/vault.d/vault.hcl
+ExecStart=/usr/bin/vault server -config={{ vault_config_dir }}/vault.hcl
 ExecReload=/bin/kill --signal HUP $MAINPID
-KillMode=process
-KillSignal=SIGINT
-Restart=on-failure
-RestartSec=5
-TimeoutStopSec=30
-StartLimitIntervalSec=60
-StartLimitBurst=3
 LimitNOFILE=65536
 LimitMEMLOCK=infinity
 

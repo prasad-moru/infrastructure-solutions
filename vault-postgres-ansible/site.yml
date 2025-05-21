@@ -1,8 +1,13 @@
 ---
-- name: Setup local Vault with PostgreSQL
+- name: Install and configure Vault
   hosts: localhost
   become: yes
+  vars:
+    vault_version: "1.16.1"
+    vault_user: vault
+    vault_group: vault
+    vault_config_dir: /etc/vault.d
+    vault_data_dir: /opt/vault/data
+    vault_log_dir: /var/log/vault
   roles:
-    - common
-    - postgresql
     - vault
