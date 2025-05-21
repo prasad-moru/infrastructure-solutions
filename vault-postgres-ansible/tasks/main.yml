@@ -1,0 +1,8 @@
+---
+- name: Include installation tasks
+  include_tasks: install.yml
+  tags: [vault, install]
+
+- name: Include configuration tasks
+  include_tasks: configure.yml
+  tags: [vault, configure]

@@ -1,0 +1,20 @@
+# Vault server configuration
+
+ui = {{ vault_ui }}
+
+storage "postgresql" {
+  connection_url = "postgres://{{ vault_db_user }}:{{ vault_db_password }}@localhost:5432/{{ vault_db_name }}?sslmode=disable"
+}
+
+listener "tcp" {
+  address         = "{{ vault_address }}:{{ vault_port }}"
+  tls_disable     = {{ vault_tls_disable }}
+{% if not vault_tls_disable | bool and vault_tls_cert_file != "" and vault_tls_key_file != "" %}
+  tls_cert_file   = "{{ vault_tls_cert_file }}"
+  tls_key_file    = "{{ vault_tls_key_file }}"
+{% endif %}
+}
+
+api_addr = "{{ vault_api_addr }}"
+
+log_level = "info"

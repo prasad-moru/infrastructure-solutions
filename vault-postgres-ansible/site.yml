@@ -1,13 +1,11 @@
 ---
-- name: Install and configure Vault
-  hosts: localhost
+- name: Deploy HashiCorp Vault with PostgreSQL backend
+  hosts: vault_servers
   become: yes
   vars:
-    vault_version: "1.16.1"
-    vault_user: vault
-    vault_group: vault
-    vault_config_dir: /etc/vault.d
-    vault_data_dir: /opt/vault/data
-    vault_log_dir: /var/log/vault
+    vault_version: "1.16.0"
+    # Override any other defaults as needed
+    vault_auto_init: true    # Set to true to initialize Vault
+    vault_auto_unseal: true  # Set to true to unseal Vault
   roles:
-    - vault
+    - vault-role

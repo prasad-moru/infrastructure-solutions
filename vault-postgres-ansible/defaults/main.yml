@@ -1,0 +1,29 @@
+---
+# Vault version and installation
+vault_version: "1.16.0"
+vault_install_dir: "/usr/local/bin"
+vault_config_dir: "/etc/vault.d"
+vault_data_dir: "/opt/vault/data"
+vault_logs_dir: "/var/log/vault"
+
+# Service configuration
+vault_service_user: "vault"
+vault_service_group: "vault"
+vault_service_name: "vault"
+
+# API configuration
+vault_api_addr: "http://127.0.0.1:8200"
+vault_ui: "true"
+
+# TLS configuration (optional)
+vault_tls_disable: "true"  # Set to false to enable TLS
+vault_tls_cert_file: ""
+vault_tls_key_file: ""
+
+# Listener configuration
+vault_address: "0.0.0.0"
+vault_port: "8200"
+
+# Auto-unseal (set to false to keep sealed after install)
+vault_auto_init: false
+vault_auto_unseal: false
