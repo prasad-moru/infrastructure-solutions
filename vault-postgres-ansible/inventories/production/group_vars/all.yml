@@ -1,0 +1,28 @@
+---
+# Common variables
+ansible_python_interpreter: /usr/bin/python3
+
+# PostgreSQL variables
+postgresql_version: 16
+postgresql_data_dir: /var/lib/postgresql/{{ postgresql_version }}/main
+postgresql_bin_dir: /usr/lib/postgresql/{{ postgresql_version }}/bin
+postgresql_conf_dir: /etc/postgresql/{{ postgresql_version }}/main
+postgresql_service: postgresql
+
+# Vault database settings
+vault_db_name: vault_db
+vault_db_user: vault_user
+vault_db_password: "your_secure_password_here"
+vault_db_port: 5432
+
+# Vault variables
+vault_version: "1.16.1"
+vault_user: vault
+vault_group: vault
+vault_config_dir: /etc/vault.d
+vault_data_dir: /opt/vault/data
+vault_log_dir: /var/log/vault
+vault_bin_dir: /usr/local/bin
+vault_tls_disabled: true  # Set to false for production with proper certs
+vault_api_addr: "http://{{ ansible_host }}:8200"
+vault_cluster_addr: "http://{{ ansible_host }}:8201"
