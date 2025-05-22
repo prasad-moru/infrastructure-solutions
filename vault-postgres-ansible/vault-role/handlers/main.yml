@@ -1,9 +1,0 @@
----
-- name: restart vault
-  service:
-    name: "{{ vault_service_name }}"
-    state: restarted
-    enabled: yes
-
-- name: reload systemd
-  command: systemctl daemon-reload
