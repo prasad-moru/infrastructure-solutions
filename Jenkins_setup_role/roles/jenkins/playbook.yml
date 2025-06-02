@@ -1,0 +1,9 @@
+---
+- name: Install Jenkins on Ubuntu servers
+  hosts: jenkins_servers
+  become: yes
+  roles:
+    - jenkins
+  vars:
+    jenkins_port: 8080
+    jenkins_host: 0.0.0.0

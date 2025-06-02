@@ -1,0 +1,19 @@
+---
+- name: Configure Jenkins service file for security
+  lineinfile:
+    path: /lib/systemd/system/jenkins.service
+    regexp: '^Environment="JENKINS_OPTS='
+    line: 'Environment="JENKINS_OPTS=--httpPort={{ jenkins_port }} --httpListenAddress={{ jenkins_host }}"'
+  become: yes
+  notify:
+    - restart jenkins
+  when: jenkins_host != "0.0.0.0"
+
+- name: Configure firewall for Jenkins (if ufw is present)
+  ufw:
+    rule: allow
+    port: "{{ jenkins_port }}"
+    proto: tcp
+  become: yes
+  when: ansible_facts['os_family'] == "Debian"
+  ignore_errors: yes

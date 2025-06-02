@@ -1,0 +1,94 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+
+- name: Install required packages
+  apt:
+    name:
+      - fontconfig
+      - "{{ java_package }}"
+      - wget
+      - curl
+      - gnupg2
+    state: present
+  become: yes
+
+- name: Verify Java installation
+  command: java -version
+  register: java_version_output
+  changed_when: false
+
+- name: Display Java version
+  debug:
+    var: java_version_output.stderr_lines
+
+- name: Create keyrings directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  become: yes
+
+- name: Download Jenkins GPG key
+  get_url:
+    url: "{{ jenkins_repo_key_url }}"
+    dest: "{{ jenkins_repo_keyring_path }}"
+    mode: '0644'
+  become: yes
+
+- name: Add Jenkins repository
+  apt_repository:
+    repo: "deb [signed-by={{ jenkins_repo_keyring_path }}] {{ jenkins_repo_url }} binary/"
+    state: present
+    filename: jenkins
+  become: yes
+
+- name: Update apt cache after adding Jenkins repository
+  apt:
+    update_cache: yes
+  become: yes
+
+- name: Install Jenkins
+  apt:
+    name: jenkins
+    state: present
+  become: yes
+  notify:
+    - restart jenkins
+
+- name: Ensure Jenkins service is configured
+  systemd:
+    name: jenkins
+    enabled: "{{ jenkins_service_enabled }}"
+    state: "{{ jenkins_service_state }}"
+    daemon_reload: yes
+  become: yes
+
+- name: Check if Jenkins is running
+  uri:
+    url: "http://{{ jenkins_host }}:{{ jenkins_port }}"
+    method: GET
+    status_code: [200, 403]
+  register: jenkins_status
+  retries: 30
+  delay: 5
+  until: jenkins_status.status in [200, 403]
+
+- name: Get Jenkins initial admin password
+  slurp:
+    src: "{{ jenkins_home }}/secrets/initialAdminPassword"
+  register: jenkins_initial_password
+  become: yes
+  when: jenkins_status.status == 403
+
+- name: Display Jenkins initial admin password
+  debug:
+    msg: "Jenkins initial admin password: {{ jenkins_initial_password.content | b64decode | trim }}"
+  when: jenkins_initial_password is defined and jenkins_initial_password.content is defined
+
+- name: Display Jenkins URL
+  debug:
+    msg: "Jenkins is accessible at: http://{{ ansible_default_ipv4.address }}:{{ jenkins_port }}"

@@ -1,0 +1,31 @@
+OS: ubuntu 24.04LTS
+
+Supported Java versions	Long term support (LTS) release	Weekly release
+Java 17 or Java 21
+
+2.479.1 (October 2024)
+
+2.463 (June 2024)
+
+
+sudo apt update
+sudo apt install fontconfig openjdk-21-jre
+java -version
+
+
+
+sudo wget -O /etc/apt/keyrings/jenkins-keyring.asc \
+  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+echo "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc]" \
+  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+sudo apt-get update
+sudo apt-get install jenkins
+
+
+
+sudo systemctl status jenkins.service
+
+key will be showing at the end like this (Jun 02 02:10:27 ip-172-31-95-201 jenkins[3168]: aa45e8dc07ad435ba6fcea6f914ccfaf
+Jun 02 02:10:27 ip-172-31-95-201 jenkins[3168]: This may also be found at: /var/lib/jenkins/secrets/initialAdminPassword
+Jun 02 02:10:27 ip-172-31-95-201 jenkins[3168]: *************************************************************)

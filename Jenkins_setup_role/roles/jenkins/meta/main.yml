@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  author: BhavaniPrasad
+  description: Jenkins installation and configuration for Ubuntu
+  company: Hitechminds
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - jenkins
+    - ci
+    - cd
+    - automation
+    - devops
+
+dependencies: []
