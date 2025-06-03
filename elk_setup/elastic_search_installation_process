@@ -1,0 +1,40 @@
+sudo apt-get update
+
+sudo apt-get install apt-transport-https -y
+
+
+curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg
+
+
+echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/9.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-9.x.list
+
+sudo apt-get update && sudo apt-get install elasticsearch -y
+
+
+sudo nano /etc/elasticsearch/elasticsearch.yml
+
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+network.host: 0.0.0.0
+xpack.security.enabled: false
+http.host: 0.0.0.0
+transport.host: 0.0.0.0
+
+
+
+this setting is for limiting the heap size of elasticsearch memory usage.
+sudo nano /etc/elasticsearch/jvm.options.d/jvm.options
+
+-Xms2g
+-Xmx2g
+========
+-Xms4g
+-Xmx4g
+
+curl -X GET 'localhost:9200/_nodes/stats/jvm?pretty
+
+curl -u elastic https://<server-ip>:9200 --cacert /etc/elasticsearch/certs/http_ca.crt
+
+
+
+ITWh8KU6KwhxAmDHJ-LI

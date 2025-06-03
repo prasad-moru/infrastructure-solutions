@@ -1,0 +1,80 @@
+
+
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearmor -o /usr/share/keyrings/elastic-keyring.gpg
+
+sudo apt-get install apt-transport-https
+
+echo "deb [signed-by=/usr/share/keyrings/elastic-keyring.gpg] https://artifacts.elastic.co/packages/9.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-9.x.list
+
+sudo apt-get update && sudo apt-get install logstash
+
+
+sudo systemctl status logstash
+
+sudo systemctl start logstash
+sudo systemctl enable logstash
+
+
+
+
+sudo nano /etc/logstash/conf.d/logstash-simple.conf
+
+input {
+  file {
+    path => "/var/log/syslog"
+    start_position => "beginning"
+  }
+}
+
+filter {
+  grok {
+    match => { "message" => "%{SYSLOGBASE} %{GREEDYDATA:syslog_message}" }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["http://54.210.91.150:9200"]
+    index => "syslog-%{+YYYY.MM.dd}"
+  }
+  stdout { codec => rubydebug }
+}
+
+
+for testing 
+
+logstash.conf
+
+output {
+  elasticsearch {
+    hosts => ["http://54.210.91.150:9200"]
+    user => "elastic"
+    password => "ITWh8KU6KwhxAmDHJ-LI"
+    index => "sample_index"
+  }
+}
+
+
+curl -L -O https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-9.0.0-amd64.deb
+sudo dpkg -i filebeat-9.0.0-amd64.deb
+
+
+
+curl -u elastic:ITWh8KU6KwhxAmDHJ-LI http://54.210.91.150:9200/_cat/indices?v
+
+
+curl -u elastic:yourpassword http://localhost:9200/_cat/indices?v
+
+
+sudo filebeat setup --index-management -E output.elasticsearch.hosts=["http://54.210.91.150:9200"]
+
+
+sudo usermod -aG adm logstash
+
+sudo systemctl restart logstash
+
+sudo chmod o+r /var/log/syslog
+
+sudo journalctl -fu logstash
+
+
