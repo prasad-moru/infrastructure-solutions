@@ -1,0 +1,209 @@
+this configuration will be settingup in where prometheus is configured. 
+
+# Create alertmanager user
+sudo useradd --no-create-home --shell /bin/false alertmanager
+
+# Download latest version
+
+wget https://github.com/prometheus/alertmanager/releases/download/v0.28.1/alertmanager-0.28.1.linux-amd64.tar.gz
+
+# Extract and install
+tar xvf alertmanager-0.28.1.linux-amd64.tar.gz
+sudo cp alertmanager-0.28.1.linux-amd64/alertmanager /usr/local/bin/
+sudo cp alertmanager-0.28.1.linux-amd64/amtool /usr/local/bin/
+
+# Set ownership
+sudo chown alertmanager:alertmanager /usr/local/bin/alertmanager
+sudo chown alertmanager:alertmanager /usr/local/bin/amtool
+
+
+sudo mkdir /etc/alertmanager
+sudo mkdir /var/lib/alertmanager
+sudo chown alertmanager:alertmanager /etc/alertmanager
+sudo chown alertmanager:alertmanager /var/lib/alertmanager
+
+sudo nano /etc/alertmanager/alertmanager.yml
+
+# alertmanager.yml
+
+route:
+  receiver: 'Mail Alert'
+  # group_by: [ alertname ]
+  repeat_interval: 30s
+  group_wait: 15s
+  group_interval: 15s
+
+receivers:
+  - name: 'Mail Alert'
+    email_configs:
+      - smarthost: 'smtp.gmail.com:587'
+        auth_username: 'prasadmoru28@gmail.com'
+        auth_password: "yzhr zgtj qereh uuoi"
+        from: 'prasadmoru28@gmail.com'
+        to: 'prasadmoru@gmail.com'
+        headers:
+          subject: 'Prometheus Mail Alerts'
+
+
+
+
+ Go to:
+https://myaccount.google.com/apppasswords
+
+create app name and it will pop up with 
+
+password like below.
+
+    yzhr zgtj qkeh suno
+
+
+sudo chown alertmanager:alertmanager /etc/alertmanager/alertmanager.yml
+
+sudo nano /etc/systemd/system/alertmanager.service
+
+
+[Unit]
+Description=Alertmanager
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=alertmanager
+Group=alertmanager
+Type=simple
+ExecStart=/usr/local/bin/alertmanager \
+    --config.file=/etc/alertmanager/alertmanager.yml \
+    --storage.path=/var/lib/alertmanager/ \
+    --web.external-url=http://localhost:9093
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
+sudo systemctl daemon-reload
+sudo systemctl enable alertmanager
+sudo systemctl start alertmanager
+sudo systemctl status alertmanager
+
+
+
+Create Alert Rules for Prometheus
+
+sudo mkdir /etc/prometheus/rules
+sudo chown prometheus:prometheus /etc/prometheus/rules
+
+
+sudo nano /etc/prometheus/rules/node_exporter_rules.yml
+
+
+groups:
+  - name: node_exporter_alerts
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} down"
+          description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighCpuLoad
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU load on {{ $labels.instance }}"
+          description: "CPU load is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"}) / node_filesystem_size_bytes{fstype!="tmpfs"} * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} mount {{ $labels.mountpoint }}"
+
+      - alert: ServiceDown
+        expr: node_systemd_unit_state{state="active"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.name }} down on {{ $labels.instance }}"
+          description: "Service {{ $labels.name }} is down on {{ $labels.instance }}"
+
+
+sudo chown prometheus:prometheus /etc/prometheus/rules/node_exporter_rules.yml
+
+sudo nano /etc/prometheus/prometheus.yml
+
+
+
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['localhost:9093']
+
+
+
+
+
+# my global config
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - localhost:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets:
+          - '54.144.2.226:9100'
+          - 'localhost:9100'
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['localhost:9093']
+
+
+
+      amtool check-config /etc/alertmanager/alertmanager.yml
+
+
+promtool check rules /etc/prometheus/rules/node_exporter_rules.yml
+
+sudo systemctl restart prometheus
+sudo systemctl status prometheus
