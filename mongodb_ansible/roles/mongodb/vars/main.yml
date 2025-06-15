@@ -1,0 +1,14 @@
+---
+# OS-specific variables
+mongodb_repo_key_url: "https://www.mongodb.org/static/pgp/server-{{ mongodb_version }}.asc"
+mongodb_repo_key_path: "/usr/share/keyrings/mongodb-server-{{ mongodb_version }}.gpg"
+mongodb_repo_line: "deb [ arch=amd64,arm64 signed-by={{ mongodb_repo_key_path }} ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/{{ mongodb_version }} multiverse"
+mongodb_repo_file: "/etc/apt/sources.list.d/mongodb-org-{{ mongodb_version }}.list"
+
+# Package names
+mongodb_packages:
+  - mongodb-org
+  - mongodb-org-server
+  - mongodb-org-shell
+  - mongodb-org-mongos
+  - mongodb-org-tools

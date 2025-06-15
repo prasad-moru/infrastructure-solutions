@@ -1,0 +1,27 @@
+---
+# MongoDB version
+mongodb_version: "7.0"
+
+# MongoDB configuration
+mongodb_port: 27017
+mongodb_bind_ip: "0.0.0.0"
+mongodb_auth_enabled: true
+
+# Database and user configuration
+mongodb_databases:
+  - name: "erp-crm"
+    users:
+      - username: "dev-user"
+        password: "Erp-Crm$#890QWE"
+        roles: "readWrite"
+
+# System configuration
+mongodb_user: "mongodb"
+mongodb_group: "mongodb"
+mongodb_data_path: "/var/lib/mongodb"
+mongodb_log_path: "/var/log/mongodb"
+mongodb_config_path: "/etc/mongod.conf"
+
+# Performance settings
+mongodb_cache_size_gb: 1
+mongodb_max_connections: 1000

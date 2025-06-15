@@ -1,0 +1,12 @@
+---
+- name: restart mongod
+  systemd:
+    name: mongod
+    state: restarted
+  become: yes
+
+- name: reload mongod
+  systemd:
+    name: mongod
+    state: reloaded
+  become: yes

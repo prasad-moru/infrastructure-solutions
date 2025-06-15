@@ -1,0 +1,115 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 600
+  become: yes
+
+- name: Install required packages
+  apt:
+    name:
+      - gnupg
+      - curl
+      - software-properties-common
+    state: present
+  become: yes
+
+- name: Add MongoDB GPG key
+  shell: |
+    curl -fsSL {{ mongodb_repo_key_url }} | gpg --dearmor -o {{ mongodb_repo_key_path }}
+  args:
+    creates: "{{ mongodb_repo_key_path }}"
+  become: yes
+
+- name: Add MongoDB repository
+  lineinfile:
+    path: "{{ mongodb_repo_file }}"
+    line: "{{ mongodb_repo_line }}"
+    create: yes
+    state: present
+  become: yes
+  register: mongodb_repo_added
+
+- name: Update apt cache after adding repository
+  apt:
+    update_cache: yes
+  become: yes
+  when: mongodb_repo_added.changed
+
+- name: Install MongoDB packages
+  apt:
+    name: "{{ mongodb_packages }}"
+    state: present
+  become: yes
+
+- name: Start MongoDB with default configuration first
+  systemd:
+    name: mongod
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: yes
+
+- name: Wait for MongoDB to start with default config
+  wait_for:
+    port: "{{ mongodb_port }}"
+    host: "127.0.0.1"
+    delay: 10
+    timeout: 60
+
+- name: Create MongoDB databases and users (without authentication)
+  shell: |
+    mongosh {{ item.0.name }} --eval "
+    db.createUser({
+      user: '{{ item.1.username }}',
+      pwd: '{{ item.1.password }}',
+      roles: [ { role: '{{ item.1.roles }}', db: '{{ item.0.name }}' } ]
+    })"
+  loop: "{{ mongodb_databases | subelements('users') }}"
+  when: mongodb_databases is defined
+  no_log: true
+
+- name: Create MongoDB configuration file with authentication enabled
+  template:
+    src: mongod.conf.j2
+    dest: "{{ mongodb_config_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  become: yes
+  notify: restart mongod
+
+- name: Restart MongoDB to apply authentication configuration
+  systemd:
+    name: mongod
+    state: restarted
+  become: yes
+
+- name: Wait for MongoDB to restart with authentication
+  wait_for:
+    port: "{{ mongodb_port }}"
+    host: "127.0.0.1"
+    delay: 10
+    timeout: 60
+
+- name: Verify MongoDB installation
+  shell: mongod --version
+  register: mongodb_version_output
+  changed_when: false
+
+- name: Display MongoDB version
+  debug:
+    msg: "MongoDB version: {{ mongodb_version_output.stdout_lines[0] }}"
+
+- name: Test MongoDB connection with authentication
+  shell: |
+    mongosh {{ item.0.name }} --username {{ item.1.username }} --password '{{ item.1.password }}' --eval "db.runCommand({ping: 1})" --quiet
+  loop: "{{ mongodb_databases | subelements('users') }}"
+  register: mongodb_auth_test
+  changed_when: false
+  no_log: true
+
+- name: Display connection test result
+  debug:
+    msg: "MongoDB authentication test: {{ 'SUCCESS' if mongodb_auth_test.results[0].rc == 0 else 'FAILED' }}"

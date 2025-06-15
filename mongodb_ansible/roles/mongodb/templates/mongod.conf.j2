@@ -1,0 +1,51 @@
+# mongod.conf
+
+# Where to store data.
+storage:
+  dbPath: {{ mongodb_data_path }}
+  journal:
+    enabled: true
+{% if mongodb_cache_size_gb is defined %}
+  wiredTiger:
+    engineConfig:
+      cacheSizeGB: {{ mongodb_cache_size_gb }}
+{% endif %}
+
+# Where to write logging data.
+systemLog:
+  destination: file
+  logAppend: true
+  path: {{ mongodb_log_path }}/mongod.log
+
+# Network interfaces
+net:
+  port: {{ mongodb_port }}
+  bindIp: {{ mongodb_bind_ip }}
+  maxIncomingConnections: {{ mongodb_max_connections }}
+
+# Process management
+processManagement:
+  timeZoneInfo: /usr/share/zoneinfo
+
+{% if mongodb_auth_enabled %}
+# Security
+security:
+  authorization: enabled
+{% endif %}
+
+# Operation profiling
+#operationProfiling:
+
+# Replication
+#replication:
+
+# Sharding
+#sharding:
+
+## Enterprise-Only Options:
+
+# Audit log
+#auditLog:
+
+# SNMP
+#snmp:

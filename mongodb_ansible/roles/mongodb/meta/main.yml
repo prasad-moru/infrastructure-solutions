@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  author: DevOps Engineer
+  description: MongoDB installation and configuration role
+  company: Your Company
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+  galaxy_tags:
+    - database
+    - mongodb
+    - nosql
+
+dependencies: []
