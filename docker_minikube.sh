@@ -196,13 +196,13 @@ show_minikube_recommendations() {
     if [ "$TOTAL_MEM_GB" -ge 16 ]; then
         print_info "For your Spring Petclinic microservices (recommended):"
         echo -e "  ${GREEN}minikube start --cpus=6 --memory=12288 --driver=docker${NC}"
-    elif [ "$TOTAL_MEM_GB" -ge 12 ]; then
+    elif [ "$TOTAL_MEM_GB" -ge 4 ]; then
         print_info "For your Spring Petclinic microservices (comfortable):"
         echo -e "  ${GREEN}minikube start --cpus=4 --memory=10240 --driver=docker${NC}"
-    elif [ "$TOTAL_MEM_GB" -ge 8 ]; then
-        print_info "For your Spring Petclinic microservices (minimum):"
-        echo -e "  ${GREEN}minikube start --cpus=4 --memory=8192 --driver=docker${NC}"
-        print_warning "You may need to reduce some service memory limits"
+   # elif [ "$TOTAL_MEM_GB" -ge 4 ]; then
+   #     print_info "For your Spring Petclinic microservices (minimum):"
+   #     echo -e "  ${GREEN}minikube start --cpus=4 --memory=8192 --driver=docker${NC}"
+   #     print_warning "You may need to reduce some service memory limits"
     else
         print_warning "Limited resources detected. Try:"
         echo -e "  ${YELLOW}minikube start --cpus=2 --memory=6144 --driver=docker${NC}"
