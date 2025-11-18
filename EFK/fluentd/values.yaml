@@ -177,7 +177,8 @@ forwarder:
   terminationGracePeriodSeconds: 30
   ## @param forwarder.extraGems List of extra gems to be installed. Can be used to install additional fluentd plugins.
   ##
-  extraGems: []
+  extraGems:
+    - fluent-plugin-kubernetes_metadata_filter
   ## @param forwarder.configFile Name of the config file that will be used by Fluentd at launch under the `/opt/bitnami/fluentd/conf` directory
   ##
   configFile: fluentd.conf
@@ -227,34 +228,20 @@ forwarder:
       </filter>
       {{- end }}
     fluentd-output.conf: |
-      # Throw the healthcheck to the standard output instead of forwarding it
+      # Throw the healthcheck to the standard output
       <match fluentd.healthcheck>
         @type stdout
       </match>
-      {{- if .Values.aggregator.enabled }}
-      # Forward all logs to the aggregators
+
+      # Forward ALL logs to the aggregator service (no headless per-pod DNS)
       <match **>
         @type forward
-        {{- if .Values.tls.enabled }}
-        transport tls
-        tls_cert_path /opt/bitnami/fluentd/certs/out_forward/ca.crt
-        tls_client_cert_path /opt/bitnami/fluentd/certs/out_forward/tls.crt
-        tls_client_private_key_path /opt/bitnami/fluentd/certs/out_forward/tls.key
-        {{- end }}
 
-        {{- $fullName := (include "common.names.fullname" .) }}
-        {{- $global := . }}
-        {{- $domain := default "cluster.local" .Values.clusterDomain }}
-        {{- $port := .Values.aggregator.port | int }}
-        {{- range $i, $e := until (.Values.aggregator.replicaCount | int) }}
         <server>
-          {{ printf "host %s-%d.%s-headless.%s.svc.%s" $fullName $i $fullName $global.Release.Namespace $domain }}
-          {{ printf "port %d" $port }}
-          {{- if ne $i 0 }}
-          standby
-          {{- end }}
+          host fluentd-aggregator.logging.svc.cluster.local
+          port 24224
         </server>
-        {{- end }}
+
         <buffer>
           @type file
           path /opt/bitnami/fluentd/logs/buffers/logs.buffer
@@ -305,7 +292,11 @@ forwarder:
   ##   - name: MY_ENV_VAR
   ##     value: my_value
   ##
-  extraEnvVars: []
+  extraEnvVars:
+    - name: K8S_NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
   ## @param forwarder.extraEnvVarsCM Name of existing ConfigMap containing extra env vars for Fluentd Forwarder nodes
   ##
   extraEnvVarsCM: ""
@@ -630,7 +621,7 @@ forwarder:
     annotations: {}
     ## @param forwarder.serviceAccount.automountServiceAccountToken Automount service account token for the server service account
     ##
-    automountServiceAccountToken: false
+    automountServiceAccountToken: true
   ## Role Based Access
   ## ref: https://kubernetes.io/docs/admin/authorization/rbac/
   ## @param forwarder.rbac.create Specify whether RBAC resources should be created and used, allowing the get, watch and list of pods/namespaces
@@ -746,12 +737,13 @@ forwarder:
 ## Aggregator parameters
 ##
 aggregator:
-  ## @param aggregator.enabled Enable Fluentd aggregator statefulset
-  ##
   enabled: true
   ## @param aggregator.replicaCount Number of aggregator pods to deploy in the Stateful Set
-  ##
   replicaCount: 1
+  
+  ## @param aggregator.enabled Enable Fluentd aggregator statefulset
+  ##
+
   ## K8s Security Context for Aggregator pods
   ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
   ## @param aggregator.podSecurityContext.enabled Enable security context for aggregator pods
@@ -804,7 +796,9 @@ aggregator:
   terminationGracePeriodSeconds: 30
   ## @param aggregator.extraGems List of extra gems to be installed. Can be used to install additional fluentd plugins.
   ##
-  extraGems: []
+  extraGems:
+    - fluent-plugin-elasticsearch
+  extraEnvVarsSecret: "fluentd-elasticsearch-auth"    
   ## @param aggregator.configFile Name of the config file that will be used by Fluentd at launch under the `/opt/bitnami/fluentd/conf` directory
   ##
   configFile: fluentd.conf
@@ -812,10 +806,8 @@ aggregator:
   ##
   configMap: ""
   ## @param aggregator.configMapFiles [object] Files to be added to be config map. Ignored if `aggregator.configMap` is set
-  ##
   configMapFiles:
     fluentd.conf: |
-      # Ignore fluentd own events
       <match fluent.**>
         @type null
       </match>
@@ -825,63 +817,52 @@ aggregator:
       {{- if .Values.metrics.enabled }}
       @include metrics.conf
       {{- end }}
+
     fluentd-inputs.conf: |
-      # TCP input to receive logs from
       {{- if .Values.aggregator.port }}
       <source>
         @type forward
         bind 0.0.0.0
         port {{ .Values.aggregator.port }}
-        {{- if .Values.tls.enabled }}
-        <transport tls>
-          ca_path /opt/bitnami/fluentd/certs/in_forward/ca.crt
-          cert_path /opt/bitnami/fluentd/certs/in_forward/tls.crt
-          private_key_path /opt/bitnami/fluentd/certs/in_forward/tls.key
-          client_cert_auth true
-        </transport>
-        {{- end }}
       </source>
       {{- end }}
 
-      # HTTP input for the liveness and readiness probes
       <source>
         @type http
         bind 0.0.0.0
         port 9880
       </source>
+
     fluentd-output.conf: |
-      # Throw the healthcheck to the standard output
       <match fluentd.healthcheck>
         @type stdout
       </match>
 
-      # Send the logs to the standard output
       <match **>
-        @type stdout
+        @type elasticsearch
+        host "#{ENV['ELASTICSEARCH_HOST']}"
+        port "#{ENV['ELASTICSEARCH_PORT']}"
+        scheme https
+        user "#{ENV['ELASTICSEARCH_USER']}"
+        password "#{ENV['ELASTICSEARCH_PASSWORD']}"
+        ssl_verify false
+
+        logstash_format true
+        logstash_prefix k8s-logs
+        include_tag_key true
+        type_name _doc
+        reconnect_on_error true
+        reload_on_failure true
+
+        <buffer>
+          @type file
+          path /opt/bitnami/fluentd/logs/buffers/es
+          flush_interval 5s
+          flush_thread_count 2
+          retry_forever true
+        </buffer>
       </match>
-    metrics.conf: |
-      # Prometheus Exporter Plugin
-      # input plugin that exports metrics
-      <source>
-        @type prometheus
-        port {{ .Values.metrics.service.port }}
-      </source>
 
-      # input plugin that collects metrics from MonitorAgent
-      <source>
-        @type prometheus_monitor
-        <labels>
-          host ${hostname}
-        </labels>
-      </source>
-
-      # input plugin that collects metrics for output plugin
-      <source>
-        @type prometheus_output_monitor
-        <labels>
-          host ${hostname}
-        </labels>
-      </source>
   ## @param aggregator.port Port the Aggregator container will listen for logs. Leave it blank to ignore.
   ## You can specify other ports in the aggregator.containerPorts parameter
   ##
@@ -895,7 +876,21 @@ aggregator:
   ##   - name: MY_ENV_VAR
   ##     value: my_value
   ##
-  extraEnvVars: []
+  extraEnvVars:
+    - name: ELASTICSEARCH_HOST
+      value: "elasticsearch-master.logging.svc.cluster.local"
+    - name: ELASTICSEARCH_PORT
+      value: "9200"
+    - name: ELASTICSEARCH_USER
+      valueFrom:
+        secretKeyRef:
+          name: elasticsearch-master-credentials
+          key: username
+    - name: ELASTICSEARCH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: elasticsearch-master-credentials
+          key: password
   ## @param aggregator.extraEnvVarsCM Name of existing ConfigMap containing extra env vars for Fluentd Aggregator nodes
   ##
   extraEnvVarsCM: ""
@@ -1350,7 +1345,7 @@ aggregator:
     ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
     ##   GKE, AWS & OpenStack)
     ##
-    storageClass: ""
+    storageClass: "gp2"
     ## @param aggregator.persistence.accessModes Persistent Volume access modes
     ##
     accessModes:
