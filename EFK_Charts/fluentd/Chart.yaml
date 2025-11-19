@@ -1,16 +1,32 @@
+annotations:
+  category: Analytics
+  images: |
+    - name: fluentd
+      image: docker.io/bitnami/fluentd:1.19.0-debian-12-r1
+  licenses: Apache-2.0
+  tanzuCategory: clusterUtility
 apiVersion: v2
-name: fluentd
-description: A Helm chart for Kubernetes
-# type: application
-version: 0.5.3
-appVersion: v1.17.1
-icon: https://www.fluentd.org/images/miscellany/fluentd-logo_2x.png
-home: https://www.fluentd.org/
-sources:
-  - https://github.com/fluent/fluentd/
-  - https://github.com/fluent/fluentd-kubernetes-daemonset
+appVersion: 1.19.0
+dependencies:
+- name: common
+  repository: oci://registry-1.docker.io/bitnamicharts
+  tags:
+  - bitnami-common
+  version: 2.x.x
+description: Fluentd collects events from various data sources and writes them to
+  files, RDBMS, NoSQL, IaaS, SaaS, Hadoop and so on.
+home: https://bitnami.com
+icon: https://dyltqmyl993wv.cloudfront.net/assets/stacks/fluentd/img/fluentd-stack-220x234.png
+keywords:
+- fluentd
+- logging
+- logs
+- data
+- collector
 maintainers:
-  - name: edsiper
-    email: eduardo@treasure-data.com
-  - name: dioguerra
-    email: diogo.filipe.tomas.guerra@cern.ch
+- name: Broadcom, Inc. All Rights Reserved.
+  url: https://github.com/bitnami/charts
+name: fluentd
+sources:
+- https://github.com/bitnami/charts/tree/main/bitnami/fluentd
+version: 7.2.5
