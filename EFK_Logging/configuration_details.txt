@@ -12,11 +12,6 @@ kubectl create secret generic fluentd-elasticsearch-auth \
 
 
 
-  kubectl run es-test --rm -it \
-   --image=curlimages/curl --restart=Never -- \
-   curl -k -u elastic:kMkJ6q5kFYz795D7 \
-   "https://elasticsearch-master.logging.svc.cluster.local:9200"
-
 
    curl -k -u elastic:kMkJ6q5kFYz795D7"https://localhost:9200/_cat/indices/k8s-logs-*?v&h=index,docs.count"
 

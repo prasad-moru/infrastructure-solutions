@@ -851,15 +851,14 @@ aggregator:
         @type record_transformer
         enable_ruby true
         <record>
-          kubernetes_sanitized_labels ${ begin
-            l = (record.dig("kubernetes","labels") || {})
-            sanitized = {}
-            l.each {|k,v|
-              nk = k.gsub(/[^0-9A-Za-z_]/,'_')
-              sanitized[nk] = v
-            }
-            sanitized
-          end }
+          kubernetes_sanitized_labels ${ (record.dig('kubernetes','labels') || {}).each_with_object({}) { |(k,v),h| h[k.gsub(/[^0-9A-Za-z_]/,'_')] = v } }
+        </record>
+      </filter>
+      <filter kubernetes.**>
+        @type record_transformer
+        enable_ruby true
+        <record>
+          kubernetes ${ begin; k = record['kubernetes'] || {}; k.delete('labels'); k; end }
         </record>
       </filter>
     
