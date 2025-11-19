@@ -847,6 +847,21 @@ aggregator:
         bind 0.0.0.0
         port 9880
       </source>
+      <filter kubernetes.**>
+        @type record_transformer
+        enable_ruby true
+        <record>
+          kubernetes_sanitized_labels ${ begin
+            l = (record.dig("kubernetes","labels") || {})
+            sanitized = {}
+            l.each {|k,v|
+              nk = k.gsub(/[^0-9A-Za-z_]/,'_')
+              sanitized[nk] = v
+            }
+            sanitized
+          end }
+        </record>
+      </filter>
     
     fluentd-output.conf: |
       <match fluentd.healthcheck>

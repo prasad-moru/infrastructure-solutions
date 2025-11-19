@@ -1,0 +1,17 @@
+{
+  "stream":"stdout",
+  "logtag":"F",
+  "log":"10.0.2.225 - - [19/Nov/2025:02:51:57 +0000] \"GET /health HTTP/1.1\" 200 33 \"-\" \"kube-probe/1.31+\" \"-\"",
+  "docker":{"container_id":"a7f9c163d00a..."},
+  "kubernetes":{
+    "container_name":"store-admin",
+    "namespace_name":"application",
+    "pod_name":"store-admin-58964bd69d-mzgg8",
+    "labels": {
+      "app":"store-admin",
+      "app.kubernetes.io/instance":"store-admin",
+      "tags.datadoghq.com/env":"production"
+    }
+  },
+  "@timestamp":"2025-11-19T02:51:57.960295161+00:00"
+}
