@@ -200,12 +200,14 @@ forwarder:
       {{- if .Values.metrics.enabled }}
       @include metrics.conf
       {{- end }}
+      
     fluentd-inputs.conf: |
       # HTTP input for the liveness and readiness probes
       <source>
         @type http
         port 9880
       </source>
+      
       # Get the logs from the containers running in the node
       <source>
         @type tail
@@ -216,24 +218,49 @@ forwarder:
         tag kubernetes.*
         read_from_head true
         <parse>
-          @type json
-          time_key time
-          time_format %Y-%m-%dT%H:%M:%S.%NZ
+          @type multi_format
+          <pattern>
+            format json
+            time_key time
+            time_format %Y-%m-%dT%H:%M:%S.%N%:z
+            keep_time_key true
+          </pattern>
+          <pattern>
+            format regexp
+            expression /^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$/
+            time_format %Y-%m-%dT%H:%M:%S.%N%:z
+            keep_time_key true
+          </pattern>
+          <pattern>
+            format none
+          </pattern>
         </parse>
       </source>
+      
+      # Strip ANSI color codes from log messages
+      <filter kubernetes.**>
+        @type record_transformer
+        enable_ruby true
+        <record>
+          log ${record["log"].to_s.gsub(/\e\[([;\d]+)?m/, '')}
+        </record>
+      </filter>
+      
       # enrich with kubernetes metadata
       {{- if or .Values.forwarder.serviceAccount.create .Values.forwarder.serviceAccount.name }}
       <filter kubernetes.**>
         @type kubernetes_metadata
       </filter>
       {{- end }}
+      
     fluentd-output.conf: |
       # Throw the healthcheck to the standard output
       <match fluentd.healthcheck>
         @type stdout
       </match>
 
-      # Forward ALL logs to the aggregator service (no headless per-pod DNS)
+      {{- if .Values.aggregator.enabled }}
+      # Forward ALL logs to the aggregator service
       <match **>
         @type forward
 
@@ -255,28 +282,25 @@ forwarder:
         @type stdout
       </match>
       {{- end }}
+      
     metrics.conf: |
       # Prometheus Exporter Plugin
-      # input plugin that exports metrics
       <source>
         @type prometheus
         port {{ .Values.metrics.service.port }}
       </source>
-      # input plugin that collects metrics from MonitorAgent
       <source>
         @type prometheus_monitor
         <labels>
           host ${hostname}
         </labels>
       </source>
-      # input plugin that collects metrics for output plugin
       <source>
         @type prometheus_output_monitor
         <labels>
           host ${hostname}
         </labels>
       </source>
-      # input plugin that collects metrics for in_tail plugin
       <source>
         @type prometheus_tail_monitor
         <labels>
@@ -459,7 +483,7 @@ forwarder:
     enabled: false
     httpGet:
       path: /fluentd.healthcheck?json=%7B%22ping%22%3A+%22pong%22%7D
-      port: http
+      port: 9880
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
@@ -478,7 +502,7 @@ forwarder:
   livenessProbe:
     enabled: true
     tcpSocket:
-      port: http
+      port: 9880
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
@@ -499,7 +523,7 @@ forwarder:
     enabled: true
     httpGet:
       path: /fluentd.healthcheck?json=%7B%22ping%22%3A+%22pong%22%7D
-      port: http
+      port: 9880
     initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 5
@@ -870,6 +894,30 @@ aggregator:
   ## @param aggregator.extraArgs Extra arguments for the Fluentd command line
   ## ref: https://docs.fluentd.org/deployment/command-line-option
   ##
+    # CRITICAL: Install newer plugin version
+  extraInitContainers:
+    - name: install-es-plugin
+      image: docker.io/bitnami/fluentd:1.17.1-debian-12-r3
+      command:
+        - sh
+        - -c
+        - |
+          echo "Upgrading fluent-plugin-elasticsearch to 5.4.3..."
+          gem uninstall fluent-plugin-elasticsearch -a -x -I || true
+          gem install fluent-plugin-elasticsearch -v 5.4.3 --no-document
+          echo "Plugin upgraded successfully!"
+          gem list | grep fluent-plugin-elasticsearch
+      volumeMounts:
+        - name: plugins
+          mountPath: /opt/bitnami/fluentd/plugins
+  
+  extraVolumes:
+    - name: plugins
+      emptyDir: {}
+  
+  extraVolumeMounts:
+    - name: plugins
+      mountPath: /opt/bitnami/fluentd/plugins
   extraArgs: ""
   ## @param aggregator.extraEnvVars Extra environment variables to pass to the container
   ## extraEnvVars:
@@ -899,13 +947,13 @@ aggregator:
   extraEnvVarsSecret: ""
   ## @param aggregator.containerPorts [array] Ports the aggregator containers will listen on
   ##
-  containerPorts:
-    # - name: my-port
-    #   containerPort: 24222
-    #   protocol: TCP
-    - name: http
-      containerPort: 9880
-      protocol: TCP
+  # containerPorts:
+  #   - name: tcp
+  #     containerPort: 24224
+  #     protocol: TCP
+  #   - name: http
+  #     containerPort: 9880
+  #     protocol: TCP
   ## Service parameters
   ##
   service:
@@ -1142,7 +1190,7 @@ aggregator:
     enabled: true
     httpGet:
       path: /fluentd.healthcheck?json=%7B%22ping%22%3A+%22pong%22%7D
-      port: http
+      port: 9880
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
@@ -1161,7 +1209,7 @@ aggregator:
   livenessProbe:
     enabled: true
     tcpSocket:
-      port: http
+      port: 9880
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
@@ -1182,7 +1230,7 @@ aggregator:
     enabled: true
     httpGet:
       path: /fluentd.healthcheck?json=%7B%22ping%22%3A+%22pong%22%7D
-      port: http
+      port: 9880
     initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 5
@@ -1218,6 +1266,13 @@ aggregator:
   ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
   ##
   resourcesPreset: "nano"
+  resources:
+  requests:
+    cpu: 500m        # Increased from 250m
+    memory: 1Gi      # Increased from 512Mi
+  limits:
+    cpu: 2000m       # Increased from 1000m
+    memory: 2Gi      # Increased from 1Gi
   ## @param aggregator.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
   ## Example:
   ## resources:

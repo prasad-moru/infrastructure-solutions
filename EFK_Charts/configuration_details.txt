@@ -1,0 +1,37 @@
+kubectl create secret generic fluentd-elasticsearch-auth \
+     --from-literal=ELASTICSEARCH_PASSWORD='<password-from-step-3>'
+
+
+prasadmoru@192-TBD-019:~/EFK_Charts$ kubectl get secrets --namespace=logging elasticsearch-master-credentials -ojsonpath='{.data.password}' | base64 -d
+RNrPuBlsrNw5Ww2X
+
+kubectl create secret generic fluentd-elasticsearch-auth \
+  -n logging \
+  --from-literal=ELASTICSEARCH_PASSWORD='kMkJ6q5kFYz795D7'     
+
+
+
+
+  kubectl run es-test --rm -it \
+   --image=curlimages/curl --restart=Never -- \
+   curl -k -u elastic:kMkJ6q5kFYz795D7 \
+   "https://elasticsearch-master.logging.svc.cluster.local:9200"
+
+
+   curl -k -u elastic:kMkJ6q5kFYz795D7"https://localhost:9200/_cat/indices/k8s-logs-*?v&h=index,docs.count"
+
+
+   prasadmoru@192-TBD-019:~/EFK_Charts$ kubectl exec -n logging fluentd-0 -- ruby -r net/http -r uri -e '
+uri = URI("https://elasticsearch-master.logging.svc.cluster.local:9200/_cluster/health")
+http = Net::HTTP.new(uri.host, uri.port)
+http.use_ssl = true
+http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+request = Net::HTTP::Get.new(uri)
+request.basic_auth("elastic", "kMkJ6q5kFYz795D7")
+response = http.request(request)
+puts response.code
+puts response.body
+'
+Defaulted container "fluentd" out of: fluentd, install-extra-gems (init), tmp-dir-permissions (init)
+200
+{"cluster_name":"elasticsearch","status":"green","timed_out":false,"number_of_nodes":2,"number_of_data_nodes":2,"active_primary_shards":1,"active_shards":2,"relocating_shards":0,"initializing_shards":0,"unassigned_shards":0,"delayed_unassigned_shards":0,"number_of_pending_tasks":0,"number_of_in_flight_fetch":0,"task_max_waiting_in_queue_millis":0,"active_shards_percent_as_number":100.0}
