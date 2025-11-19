@@ -85,7 +85,7 @@ diagnosticMode:
 image:
   registry: public.ecr.aws
   repository: bitnami/fluentd
-  tag: fluentd:1.16.5-debian-12-r1
+  tag: 1.16.5-debian-12-r1
   ## Specify a imagePullPolicy
   ## ref: https://kubernetes.io/docs/concepts/containers/images/#pre-pulled-images
   ##
@@ -206,7 +206,7 @@ forwarder:
         port 9880
       </source>
       # Get the logs from the containers running in the node
-      <source>
+       <source>
         @type tail
         path /var/log/containers/*.log
         # exclude Fluentd logs
@@ -215,11 +215,24 @@ forwarder:
         tag kubernetes.*
         read_from_head true
         <parse>
-          @type json
-          time_key time
-          time_format %Y-%m-%dT%H:%M:%S.%NZ
+          @type multi_format
+          <pattern>
+            format json
+            time_key time
+            time_type string
+            time_format %Y-%m-%dT%H:%M:%S.%NZ
+            keep_time_key false
+          </pattern>
+          <pattern>
+            format regexp
+            expression /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/
+            time_format '%Y-%m-%dT%H:%M:%S.%N%:z'
+            keep_time_key false
+          </pattern>
         </parse>
+        emit_unmatched_lines true
       </source>
+
       # enrich with kubernetes metadata
       {{- if or .Values.forwarder.serviceAccount.create .Values.forwarder.serviceAccount.name }}
       <filter kubernetes.**>
@@ -241,7 +254,6 @@ forwarder:
         tls_client_cert_path /opt/bitnami/fluentd/certs/out_forward/tls.crt
         tls_client_private_key_path /opt/bitnami/fluentd/certs/out_forward/tls.key
         {{- end }}
-
         {{- $fullName := (include "common.names.fullname" .) }}
         {{- $global := . }}
         {{- $domain := default "cluster.local" .Values.clusterDomain }}
@@ -815,67 +827,74 @@ aggregator:
   ##
   configMapFiles:
     fluentd.conf: |
-      # Ignore fluentd own events
       <match fluent.**>
         @type null
       </match>
 
       @include fluentd-inputs.conf
       @include fluentd-output.conf
-      {{- if .Values.metrics.enabled }}
       @include metrics.conf
-      {{- end }}
+      
     fluentd-inputs.conf: |
-      # TCP input to receive logs from
-      {{- if .Values.aggregator.port }}
       <source>
         @type forward
         bind 0.0.0.0
-        port {{ .Values.aggregator.port }}
-        {{- if .Values.tls.enabled }}
-        <transport tls>
-          ca_path /opt/bitnami/fluentd/certs/in_forward/ca.crt
-          cert_path /opt/bitnami/fluentd/certs/in_forward/tls.crt
-          private_key_path /opt/bitnami/fluentd/certs/in_forward/tls.key
-          client_cert_auth true
-        </transport>
-        {{- end }}
+        port 24224
       </source>
-      {{- end }}
-
-      # HTTP input for the liveness and readiness probes
+      
       <source>
         @type http
         bind 0.0.0.0
         port 9880
       </source>
+    
     fluentd-output.conf: |
-      # Throw the healthcheck to the standard output
       <match fluentd.healthcheck>
         @type stdout
       </match>
-
-      # Send the logs to the standard output
+      
+      # Output to Elasticsearch 8.5.1
       <match **>
-        @type stdout
+        @type elasticsearch
+        
+        host "#{ENV['ELASTICSEARCH_HOST']}"
+        port "#{ENV['ELASTICSEARCH_PORT']}"
+        scheme "#{ENV['ELASTICSEARCH_SCHEME']}"
+        
+        user "#{ENV['ELASTICSEARCH_USER']}"
+        password "#{ENV['ELASTICSEARCH_PASSWORD']}"
+        
+        ssl_verify false
+        
+        # ES 8.x compatibility - CRITICAL!
+        suppress_type_name true
+        default_elasticsearch_version 8
+        verify_es_version_at_startup false
+        
+        logstash_format true
+        logstash_prefix fluentd
+        
+        <buffer>
+          @type file
+          path /opt/bitnami/fluentd/logs/buffers/elasticsearch
+          flush_interval 10s
+          chunk_limit_size 20M
+        </buffer>
       </match>
+    
     metrics.conf: |
-      # Prometheus Exporter Plugin
-      # input plugin that exports metrics
       <source>
         @type prometheus
-        port {{ .Values.metrics.service.port }}
+        port 24231
       </source>
-
-      # input plugin that collects metrics from MonitorAgent
+      
       <source>
         @type prometheus_monitor
         <labels>
           host ${hostname}
         </labels>
       </source>
-
-      # input plugin that collects metrics for output plugin
+      
       <source>
         @type prometheus_output_monitor
         <labels>
@@ -895,7 +914,20 @@ aggregator:
   ##   - name: MY_ENV_VAR
   ##     value: my_value
   ##
-  extraEnvVars: []
+  extraEnvVars:
+    - name: ELASTICSEARCH_HOST
+      value: "elasticsearch-master"
+    - name: ELASTICSEARCH_PORT
+      value: "9200"
+    - name: ELASTICSEARCH_SCHEME
+      value: "https"
+    - name: ELASTICSEARCH_USER
+      value: "elastic"
+    - name: ELASTICSEARCH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: elasticsearch-master-credentials
+          key: password
   ## @param aggregator.extraEnvVarsCM Name of existing ConfigMap containing extra env vars for Fluentd Aggregator nodes
   ##
   extraEnvVarsCM: ""
